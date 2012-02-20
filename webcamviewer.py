@@ -11,10 +11,11 @@ import pygtk, gtk, gobject
 import pygst
 pygst.require("0.10")
 import gst
+import argparse
 
 class Webcam:
     
-    def __init__(self, device):
+    def __init__(self, device, window_size, framerate):
         """
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
         If any, the external webcam (/dev/video1) will be selected by default, otherwise, /dev/video0 will be used
@@ -38,9 +39,13 @@ class Webcam:
         hbox.add(gtk.Label())
         
         # SET UP THE GSTREAMER PIPELINE 
-        self.device = device # Need ?
-        print 'v4l2src device=' + self.device + '! video/x-raw-yuv,width=640,height=480,framerate=30/1 ! xvimagesink'
-        self.player = gst.parse_launch('v4l2src device='+ self.device +' ! video/x-raw-yuv,width=640,height=480,framerate=30/1 ! xvimagesink')
+        self.device = device 
+        self.W = window_size[0]
+        self.H = window_size[1]
+        self.framerate = framerate
+        print 'v4l2src device={0} ! video/x-raw-yuv,width={1},height={2},framerate={3}/1 ! xvimagesink'.format(self.device, str(self.W), str(self.H), str(self.framerate))
+        self.player = gst.parse_launch('v4l2src device={0} ! video/x-raw-yuv,width={1},height={2},framerate={3}/1 ! xvimagesink'.format(self.device, self.W, self.H, self.framerate))
+
         # input from webcam (v4l2src : video for linux 2), output : xvimagesink
         self.player.set_state(gst.STATE_PLAYING)
         # More information here : http://www.cin.ufpe.br/~cinlug/wiki/index.php/Introducing_GStreamer
@@ -54,6 +59,8 @@ class Webcam:
        
         # ROCK ON BABY \o/
         window.show_all()
+
+        
             
     def exit(self, widget, data=None):
         """ Exit the program """
@@ -91,25 +98,29 @@ class Webcam:
 
 if __name__ == "__main__":
 
-    if exists("/dev/video1"):
-        device = "/dev/video1"
-        print "Connected webcam (/dev/video1) will be used for webcam stream"
-    elif exists("/dev/video0"):
-        device = "/dev/video0"
-        print "Default webcam (/dev/video0) will be used for webcam stream"
-    else:
-        print "No webcam detected. The program is now exiting."
+    if not exists('/dev/video0'):
+        print "No webcam detected: /dev/video cannot be found.\n The program is now exiting."
         exit()
+
+    # Argument parsing
+    parser = argparse.ArgumentParser(description='Set video stream window parameters')
+    parser.add_argument('--device', '-d',type=str, action='store', default='/dev/video0', help="Set the video input device path")
+    parser.add_argument('--window-size', '-w', nargs='+', type=str,  default=['640', '480'], 
+                        # choices = [[352, 288], [640, 480], [1024, 768], [1280, 720], [1280, 1024], [1600, 1200], [1920, 1080], [2048, 1536]],
+                        # My webcam goes up to 1024x768
+                        help="Set the video stream resolution. Of form 'W H'")
+    parser.add_argument('--framerate', '-f', type=str, default=30, help="Set the video stream framerate") # --> CHOICES = ?
+
+    args = vars(parser.parse_args())
+    
+    device = args['device']
+    window_size = args['window_size']
+    framerate = args['framerate']
         
-    Webcam(device)
+    Webcam(device, window_size, framerate)
     gtk.gdk.threads_init()
     gtk.main()
 
-# ONLY DISPLAYS WEBCAM FEED AFTER I LAUNCHED & CLOSED CHEESE 
-# When it works, I have a message "ON SYNC MESSAGE" --> call on_sync_message(self, bus, message) method
-# see other source code, to see how exiting is handled webcam-wise --> HOW DO WE SHUT DOWN THE WEBCAM ?
-# I tested it in the original (webcam.py.bckp) script : works fine the first time, but doesn't work
-# another time after i hit "Stop"
 
 # TODO : 
 #     * Take a picture from the videostream
@@ -117,3 +128,10 @@ if __name__ == "__main__":
 #         * --device, -d: device (/dev/video0, etc)
 #         * --window-size, -w : window dimensions --> W:H (in px)
 #         * --framerate, -f : numbers of frame per second
+
+# BUGS:
+# BUG#1: ONLY DISPLAYS WEBCAM FEED AFTER I LAUNCHED & CLOSED CHEESE 
+# When it works, I have a message "ON SYNC MESSAGE" --> call on_sync_message(self, bus, message) method
+# see other source code, to see how exiting is handled webcam-wise --> HOW DO WE SHUT DOWN THE WEBCAM ?
+# I tested it in the original (webcam.py.bckp) script : works fine the first time, but doesn't work
+# another time after i hit "Stop"

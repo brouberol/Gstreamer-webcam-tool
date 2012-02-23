@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
 """
-This script sets up a video stream from internal or connected webcam using
-Gstreamer.
+This script sets up a video stream from internal or connected webcam using Gstreamer.
+You can then take snapshots.
 """
 
 
@@ -13,7 +13,6 @@ import gst
 import argparse
 import Image
 
-from time import sleep
 from os.path import exists
 from sys import exit
 

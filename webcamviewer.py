@@ -24,7 +24,7 @@ framerate = 30
 # More infos about Gstreamer here : 
 #  * http://www.cin.ufpe.br/~cinlug/wiki/index.php/Introducing_GStreamer
 #  * http://www.oz9aec.net/index.php/gstreamer/345-a-weekend-with-gstreamer
-gst_src             = 'v4l2src device=' # VideoForLinux driver with asociated with specified device 
+gst_src             = 'v4l2src device=' # VideoForLinux driver asociated with specified device 
 gst_src_format      = 'video/x-raw-yuv' # colorspace specific to webcam
 gst_videosink       = 'xvimagesink'     # sink habilitated to manage images
 gst_output_filename = 'snapshot'        # prefix for all captured images
@@ -38,15 +38,15 @@ class Webcam:
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
         When everything is created, display.
         """
-        self.device = device         
-        self.W = resolution[0].split(':')[0]
-        self.H = resolution[0].split(':')[1]
-        self.framerate = str(framerate)+'/1'
-        self.snap_format = snap_format
+        self.device = device                 # device used for video input
+        self.W = resolution[0].split(':')[0] # resolution: width
+        self.H = resolution[0].split(':')[1] # resoltuion: height
+        self.framerate = str(framerate)+'/1' # number of frames per second
+        self.snap_format = snap_format       # format of snapshot (png, jpg, ...)
         if self.snap_format == 'png':
-            self.image_enc = 'pngenc'
+            self.image_enc = 'pngenc'        # png encoder for gstreamer
         elif self.snap_format in ['jpg','jpeg']:
-            self.image_enc = 'jpegenc'
+            self.image_enc = 'jpegenc'       # jpg encoder for gstreamer
         self.output = gst_output_filename+'.'+self.snap_format
 
         self.create_gui()
@@ -79,8 +79,8 @@ class Webcam:
         videosink = gst_videosink # video receiver
         video_pipeline = src + sep  + src_format + sep + videosink 
         print 'gstreamer video pipeline :', video_pipeline
-        self.video_player = gst.parse_launch(video_pipeline)
-        self.video_player.set_state(gst.STATE_PLAYING)
+        self.video_player = gst.parse_launch(video_pipeline) # create pipeline
+        self.video_player.set_state(gst.STATE_PLAYING)       # start video stream
 
         bus = self.video_player.get_bus()
         bus.add_signal_watch()

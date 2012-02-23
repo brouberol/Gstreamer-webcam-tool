@@ -16,7 +16,7 @@ import Image
 
 class Webcam:
     
-    def __init__(self, device, resolution, framerate):
+    def __init__(self, device, resolution, framerate, snap_format):
         """
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
         If any, the external webcam (/dev/video1) will be selected by default, otherwise, /dev/video0 will be used
@@ -44,6 +44,11 @@ class Webcam:
         self.W = resolution[0].split(':')[0]
         self.H = resolution[0].split(':')[1]
         self.framerate = framerate
+        self.snap_format = snap_format
+        if self.snap_format == 'png':
+            self.image_enc = 'pngenc'
+        elif self.snap_format in ['jpg','jpeg']:
+            self.image_enc = 'jpegenc'
         print 'v4l2src device={0} ! video/x-raw-yuv,width={1},height={2},framerate={3}/1 ! xvimagesink '.format(self.device, str(self.W), str(self.H), str(self.framerate))
         self.player = gst.parse_launch('v4l2src device=%s ! video/x-raw-yuv,width=%s,height=%s,framerate=%s/1 ! xvimagesink name=videosink' %(self.device, self.W, self.H, self.framerate))
         self.sink = self.player.get_by_name('videosink')
@@ -98,7 +103,7 @@ class Webcam:
     def get_frame(self, e):
         self.player.set_state(gst.STATE_PAUSED)
         self.player.set_state(gst.STATE_NULL)    
-        snap_pipeline = "v4l2src device=/dev/video1 ! video/x-raw-yuv,width=%s,height=%s ! ffmpegcolorspace  ! pngenc ! filesink location=test.png" %(self.W, self.H)
+        snap_pipeline = "v4l2src device=/dev/video1 ! video/x-raw-yuv,width=%s,height=%s ! ffmpegcolorspace  ! %s ! filesink location=snapshot.%s" %(self.W, self.H, self.image_enc, self.snap_format)
         print snap_pipeline
         self.player2= gst.parse_launch(snap_pipeline)
         self.player2.set_state(gst.STATE_PLAYING)
@@ -123,13 +128,15 @@ if __name__ == "__main__":
                         choices = ['352:288', '640:480', '800:600', '960:720', '1280:720'],
                         help="Set the video stream resolution. Of form 'W H'")
     parser.add_argument('--framerate', '-f', type=str, default=30, help="Set the video stream framerate") # --> CHOICES = ?
+    parser.add_argument('--output-format', '-o', type=str, action='store', default='png', choices=['png','jpeg','jpg'], help="Set the snapshot format")
 
     args = vars(parser.parse_args())
     device = args['device']
     resolution = args['resolution']
     framerate = args['framerate']
+    snap_format = args['output_format']
         
-    Webcam(device, resolution, framerate)
+    Webcam(device, resolution, framerate, snap_format)
     gtk.gdk.threads_init()
     gtk.main()
 

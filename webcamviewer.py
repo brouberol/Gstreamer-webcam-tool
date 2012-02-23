@@ -5,42 +5,63 @@ This script sets up a video stream from internal or connected webcam using
 Gstreamer.
 """
 
-from os.path import exists
-from sys import exit
-import pygtk, gtk, gobject
+
+import pygtk, gtk
 import pygst
 pygst.require("0.10")
 import gst
 import argparse
 import Image
-from time import sleep
 
-class Webcam:
-    
-    def __init__(self, device, resolution, framerate, snap_format):
+from time import sleep
+from os.path import exists
+from sys import exit
+
+window_w  = 660
+window_h  = 550
+framerate = 30
+
+# Gstreamer constants. 
+# More infos about Gstreamer here : 
+#  * http://www.cin.ufpe.br/~cinlug/wiki/index.php/Introducing_GStreamer
+#  * http://www.oz9aec.net/index.php/gstreamer/345-a-weekend-with-gstreamer
+gst_src             = 'v4l2src device=' # VideoForLinux driver with asociated with specified device 
+gst_src_format      = 'video/x-raw-yuv' # colorspace specific to webcam
+gst_videosink       = 'xvimagesink'     # sink habilitated to manage images
+gst_output_filename = 'snapshot'        # prefix for all captured images
+gst_filesink        = 'filesink location=%s.' %gst_output_filename # fink habilitated to manage files
+yuv_rgb_converter   = 'ffmpegcolorspace'# convert YUV images to RGB
+sep                 = ' ! '             # standard gstreamer pipe. Don't change that
+
+class Webcam:    
+    def __init__(self, device, resolution, snap_format):
         """
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
-        If any, the external webcam (/dev/video1) will be selected by default, otherwise, /dev/video0 will be used
+        When everything is created, display.
         """
-
-        # OBJECT ARGUMENTS
         self.device = device         
         self.W = resolution[0].split(':')[0]
         self.H = resolution[0].split(':')[1]
-        self.framerate = framerate
+        self.framerate = str(framerate)+'/1'
         self.snap_format = snap_format
         if self.snap_format == 'png':
             self.image_enc = 'pngenc'
         elif self.snap_format in ['jpg','jpeg']:
             self.image_enc = 'jpegenc'
+        self.output = gst_output_filename+'.'+self.snap_format
 
-        # SET UP THE INTERFACE
-        window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        window.set_title("Webcam-Viewer")
-        window.set_default_size(660, 500)
-        window.connect("destroy", self.exit, "WM destroy")
+        self.create_gui()
+        self.create_video_pipeline()
+        self.window.show_all()
+
+    def create_gui(self):
+        """Set up the GUI"""
+        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
+        self.window.set_title("Strongsteam is watching you...")
+        self.window.set_default_size(window_w, window_h)
+        self.window.connect("destroy", self.exit, "WM destroy")
         vbox = gtk.VBox()
-        window.add(vbox)
+        self.window.add(vbox)
         self.movie_window = gtk.DrawingArea()
         vbox.add(self.movie_window)
         hbox = gtk.HBox()
@@ -51,23 +72,22 @@ class Webcam:
         self.button.connect("clicked", self.get_snapshot)
         hbox.pack_start(self.button, False)
         hbox.add(gtk.Label())
-        
-        # SET UP THE GSTREAMER VIDEO PIPELINE 
-        print 'v4l2src device={0} ! video/x-raw-yuv,width={1},height={2},framerate={3}/1 ! xvimagesink '.format(self.device, str(self.W), str(self.H), str(self.framerate))
-        self.video_player = gst.parse_launch('v4l2src device=%s ! video/x-raw-yuv,width=%s,height=%s,framerate=%s/1 ! xvimagesink' %(self.device, self.W, self.H, self.framerate))
-        # input from webcam (v4l2src : video for linux 2), output : xvimagesink
-        self.video_player.set_state(gst.STATE_PLAYING)
-        # More information here : http://www.cin.ufpe.br/~cinlug/wiki/index.php/Introducing_GStreamer
 
-        # SET UP WINDOW <--> WEBCAM STREAM COMMUNICATION BUS
+    def create_video_pipeline(self):
+        """Set up the video pipeline and the communication bus bewteen the video stream and gtk DrawingArea """
+        src = gst_src + self.device # video input
+        src_format = gst_src_format +',width='+ self.W + ',height=' + self.H +',framerate='+ self.framerate # video parameters
+        videosink = gst_videosink # video receiver
+        video_pipeline = src + sep  + src_format + sep + videosink 
+        print 'gstreamer video pipeline :', video_pipeline
+        self.video_player = gst.parse_launch(video_pipeline)
+        self.video_player.set_state(gst.STATE_PLAYING)
+
         bus = self.video_player.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self.on_message)
         bus.enable_sync_message_emission()
-        bus.connect("sync-message::element", self.on_sync_message)
-       
-        # ROCK ON BABY \o/
-        window.show_all()
+        bus.connect("sync-message::element", self.on_sync_message)        
                    
     def exit(self, widget, data=None):
         """ Exit the program """
@@ -75,7 +95,7 @@ class Webcam:
         gtk.main_quit()
         
     def on_message(self, bus, message):
-        """ Gst message sink. Closes the pipeline in case of error or EOS (end of stream) message """
+        """ Gst message bus. Closes the pipeline in case of error or EOS (end of stream) message """
         t = message.type
         if t == gst.MESSAGE_EOS:
             print "MESSAGE EOS"
@@ -87,7 +107,7 @@ class Webcam:
             self.video_player.set_state(gst.STATE_NULL)
                     
     def on_sync_message(self, bus, message):
-        """ Webcam <--> GUI messages sink """
+        """ Set up the Webcam <--> GUI messages bus """
         if message.structure is None:
             return
         message_name = message.structure.get_name()
@@ -102,17 +122,27 @@ class Webcam:
         # We close video stream
         self.video_player.set_state(gst.STATE_NULL)
         # Open a image capture pipeline
-        snap_pipeline = "v4l2src device=/dev/video1 ! video/x-raw-yuv,width=%s,height=%s ! ffmpegcolorspace  ! %s ! filesink location=snapshot.%s" %(self.W, self.H, self.image_enc, self.snap_format)
-        print snap_pipeline
-        self.image_capture= gst.parse_launch(snap_pipeline)
-        self.image_capture.set_state(gst.STATE_PLAYING)
-        # Picture capture : Hack : it needs some time to take the picture, otherwise, the snaphsot is empty
-        print "taking picture !"
-        sleep(0.5)
+        src = gst_src + self.device # video input
+        src_format =  gst_src_format + ',width=' + self.W + ',height=' + self.H # video format
+        output = gst_filesink + self.snap_format # file ouput 
+        snap_pipeline = src + sep + src_format + sep + yuv_rgb_converter + sep + self.image_enc + sep + output # We have to convert YUV format to RGB to save the image
+       
+        print 'gstreamer image_pipeline :', snap_pipeline
+        self.image_capture= gst.parse_launch(snap_pipeline) # Create pipeline
+        self.image_capture.set_state(gst.STATE_PLAYING) # Start it. That will save the image, because of the filesink component
+        # We need to wait until IO on snapshot is over
+        snapshot_is_captured = False
+        while snapshot_is_captured == False:
+            try:
+                Image.open(self.output)
+                snapshot_is_captured = True
+            except IOError:
+                pass
         # Killing image capture pipeline
         self.image_capture.set_state(gst.STATE_NULL)
         # restoring video pipeline
         self.video_player.set_state(gst.STATE_PLAYING)
+        
 
 if __name__ == "__main__":
 
@@ -123,20 +153,20 @@ if __name__ == "__main__":
 
     # Argument parsing
     parser = argparse.ArgumentParser(description='Set video stream window parameters')
-    parser.add_argument('--device', '-d',type=str, action='store', default='/dev/video0', help="Set the video input device path")
-    parser.add_argument('--resolution', '-r', nargs='+', type=str,  default=['800:600'], 
+    parser.add_argument('--device', '-d',type=str, action='store', default='/dev/video0', help="Set the video input device path : /dev/videoX")
+    parser.add_argument('--resolution', '-r', nargs='+', type=str,  default=['640:480'], 
                         choices = ['352:288', '640:480', '800:600', '960:720', '1280:720'],
-                        help="Set the video stream resolution. Of form 'W H'")
-    parser.add_argument('--framerate', '-f', type=str, default=30, help="Set the video stream framerate") # --> CHOICES = ?
-    parser.add_argument('--output-format', '-o', type=str, action='store', default='png', choices=['png','jpeg','jpg'], help="Set the snapshot format")
+                        help="Set the video stream resolution. Of the form W:H")
+    #parser.add_argument('--framerate', '-f', type=str, default=30, help="Set the video stream framerate") # --> CHOICES = ?
+    parser.add_argument('--output-format', '-o', type=str, action='store', default='jpg', choices=['png','jpeg','jpg'], help="Set the snapshot format")
 
     args = vars(parser.parse_args())
     device = args['device']
     resolution = args['resolution']
-    framerate = args['framerate']
+    #framerate = args['framerate']
     snap_format = args['output_format']
 
     # Let the show begin 
-    Webcam(device, resolution, framerate, snap_format)
+    Webcam(device, resolution, snap_format)
     gtk.gdk.threads_init()
     gtk.main()

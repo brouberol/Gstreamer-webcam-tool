@@ -5,7 +5,6 @@ This script sets up a video stream from internal or connected webcam using Gstre
 You can then take snapshots.
 """
 
-
 import pygtk, gtk
 import pygst
 pygst.require("0.10")
@@ -40,7 +39,7 @@ class Webcam:
         """
         self.device = device                 # device used for video input
         self.W = resolution[0].split(':')[0] # resolution: width
-        self.H = resolution[0].split(':')[1] # resoltuion: height
+        self.H = resolution[0].split(':')[1] # resolution: height
         self.framerate = str(framerate)+'/1' # number of frames per second
         self.snap_format = snap_format       # format of snapshot (png, jpg, ...)
         if self.snap_format == 'png':
@@ -156,13 +155,11 @@ if __name__ == "__main__":
     parser.add_argument('--resolution', '-r', nargs='+', type=str,  default=['640:480'], 
                         choices = ['352:288', '640:480', '800:600', '960:720', '1280:720'],
                         help="Set the video stream resolution. Of the form W:H")
-    #parser.add_argument('--framerate', '-f', type=str, default=30, help="Set the video stream framerate") # --> CHOICES = ?
     parser.add_argument('--output-format', '-o', type=str, action='store', default='jpg', choices=['png','jpeg','jpg'], help="Set the snapshot format")
 
     args = vars(parser.parse_args())
     device = args['device']
     resolution = args['resolution']
-    #framerate = args['framerate']
     snap_format = args['output_format']
 
     # Let the show begin 

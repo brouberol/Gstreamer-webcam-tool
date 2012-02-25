@@ -81,7 +81,7 @@ class Webcam:
     def create_video_pipeline(self):
         """Set up the video pipeline and the communication bus bewteen the video stream and gtk DrawingArea """
         src = gst_src + self.device # video input
-        src_format = gst_src_format +',width='+ str(self.W) + ',height=' + str(self.H) +',framerate='+ self.framerate # video parameters
+        src_format = gst_src_format +',width='+ self.W + ',height=' + self.H +',framerate='+ self.framerate # video parameters
         videosink = gst_videosink # video receiver
         video_pipeline = src + sep  + src_format + sep + videosink 
         print 'gstreamer video pipeline :', video_pipeline
@@ -128,7 +128,7 @@ class Webcam:
         self.video_player.set_state(gst.STATE_NULL)
         # Open a image capture pipeline
         src = gst_src + self.device # video input
-        src_format =  gst_src_format + ',width=' + str(self.W) + ',height=' + str(self.H) # video format
+        src_format =  gst_src_format + ',width=' + self.W + ',height=' + self.H # video format
         self.output = snapshot_name() + '.' + self.snap_format # file ouput
         filesink = gst_filesink + self.output # file sink & location  
         snap_pipeline = src + sep + src_format + sep + yuv_rgb_converter + sep + self.image_enc + sep + filesink # We have to convert YUV format to RGB to save the image

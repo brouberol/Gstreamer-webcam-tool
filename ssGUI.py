@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 """
-This script sets up a video stream from internal or connected webcam using Gstreamer.
+This module sets up a video stream from internal or connected webcam using Gstreamer.
 You can then take snapshots.
 """
 
@@ -14,6 +14,7 @@ import Image
 
 from os.path import exists
 from sys import exit
+from datetime import datetime
 
 window_w  = 660
 window_h  = 550
@@ -26,8 +27,7 @@ framerate = 30
 gst_src             = 'v4l2src device=' # VideoForLinux driver asociated with specified device 
 gst_src_format      = 'video/x-raw-yuv' # colorspace specific to webcam
 gst_videosink       = 'xvimagesink'     # sink habilitated to manage images
-gst_output_filename = 'snapshot'        # prefix for all captured images
-gst_filesink        = 'filesink location=%s.' %gst_output_filename # fink habilitated to manage files
+gst_filesink        = 'filesink location=' # fink habilitated to manage files
 yuv_rgb_converter   = 'ffmpegcolorspace'# convert YUV images to RGB
 sep                 = ' ! '             # standard gstreamer pipe. Don't change that
 
@@ -37,7 +37,6 @@ class Webcam:
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
         When everything is created, display.
         """
-
         # Before anything, let's be sure that we have a webcam plugged in
         if not exists('/dev/video0'):
             print "No webcam detected: /dev/video0 cannot be found.\n The program is now exiting."
@@ -55,7 +54,6 @@ class Webcam:
             self.image_enc = 'pngenc'        # png encoder for gstreamer
         elif self.snap_format in ['jpg','jpeg']:
             self.image_enc = 'jpegenc'       # jpg encoder for gstreamer
-        self.output = gst_output_filename+'.'+self.snap_format
 
         self.create_gui()
         self.create_video_pipeline()
@@ -131,12 +129,14 @@ class Webcam:
         # Open a image capture pipeline
         src = gst_src + self.device # video input
         src_format =  gst_src_format + ',width=' + str(self.W) + ',height=' + str(self.H) # video format
-        output = gst_filesink + self.snap_format # file ouput 
-        snap_pipeline = src + sep + src_format + sep + yuv_rgb_converter + sep + self.image_enc + sep + output # We have to convert YUV format to RGB to save the image
+        self.output = snapshot_name() + '.' + self.snap_format # file ouput
+        filesink = gst_filesink + self.output # file sink & location  
+        snap_pipeline = src + sep + src_format + sep + yuv_rgb_converter + sep + self.image_enc + sep + filesink # We have to convert YUV format to RGB to save the image
        
         print 'gstreamer image_pipeline :', snap_pipeline
         self.image_capture= gst.parse_launch(snap_pipeline) # Create pipeline
         self.image_capture.set_state(gst.STATE_PLAYING) # Start it. That will save the image, because of the filesink component
+        
         # We need to wait until IO on snapshot is over
         snapshot_is_captured = False
         while snapshot_is_captured == False:
@@ -148,13 +148,25 @@ class Webcam:
         # Killing image capture pipeline
         self.image_capture.set_state(gst.STATE_NULL)
         # restoring video pipeline
-        self.video_player.set_state(gst.STATE_PLAYING)
+        self.video_player.set_state(gst.STATE_PLAYING)        
         
     def run(self):
+        """ Main loop """
         gtk.gdk.threads_init()
         gtk.main()
 
-
+def snapshot_name():
+    """ Return a string of the form yyyy-mm-dd-hms """
+    from datetime import datetime
+    today = datetime.today()
+    y = str(today.year)
+    m = str(today.month)
+    d = str(today.day)
+    h = str(today.hour)
+    mi= str(today.minute)
+    s = str(today.second)
+    return '%s-%s-%s-%s%s%s' %(y, m, d, h, mi, s)
+    
 # if __name__ == "__main__":
 
 #     # Argument parsing

@@ -14,7 +14,6 @@ import Image
 
 from os.path import exists
 from sys import exit
-from datetime import datetime
 
 window_w  = 660
 window_h  = 550

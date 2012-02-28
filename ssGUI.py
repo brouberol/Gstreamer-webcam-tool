@@ -9,14 +9,12 @@ import pygtk, gtk
 import pygst
 pygst.require("0.10")
 import gst
-import argparse
-import Image
 
 from os.path import exists
 from sys import exit
 
 window_w  = 660
-window_h  = 550
+window_h  = 543
 framerate = 30
 
 # Gstreamer constants. 
@@ -26,11 +24,9 @@ framerate = 30
 gst_src             = 'v4l2src device=' # VideoForLinux driver asociated with specified device 
 gst_src_format      = 'video/x-raw-yuv' # colorspace specific to webcam
 gst_videosink       = 'xvimagesink'     # sink habilitated to manage images
-gst_filesink        = 'filesink location=' # fink habilitated to manage files
-yuv_rgb_converter   = 'ffmpegcolorspace'# convert YUV images to RGB
 sep                 = ' ! '             # standard gstreamer pipe. Don't change that
 
-class Webcam:    
+class StrongsteamGUI:    
     def __init__(self, device, resolution, snap_format):
         """
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
@@ -45,14 +41,10 @@ class Webcam:
             self.device = '/dev/video0'
         else:
             self.device = device             # device used for video input
-        self.W = resolution[0]               # resolution: width
-        self.H = resolution[1]               # resolution: height
+        self.W = int(resolution[0])               # resolution: width
+        self.H = int(resolution[1])               # resolution: height
         self.framerate = str(framerate)+'/1' # number of frames per second
         self.snap_format = snap_format       # format of snapshot (png, jpg, ...)
-        if self.snap_format == 'png':
-            self.image_enc = 'pngenc'        # png encoder for gstreamer
-        elif self.snap_format in ['jpg','jpeg']:
-            self.image_enc = 'jpegenc'       # jpg encoder for gstreamer
 
         self.create_gui()
         self.create_video_pipeline()
@@ -60,30 +52,40 @@ class Webcam:
 
     def create_gui(self):
         """Set up the GUI"""
+        # Window
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
         self.window.set_title("Strongsteam is watching you...")
         self.window.set_default_size(window_w, window_h)
         self.window.connect("destroy", self.exit, "WM destroy")
+        self.window.set_geometry_hints(min_width=window_w, 
+                                       min_height=window_h, 
+                                       max_width=window_w, 
+                                       max_height=window_h,)
+        self.window.set_position(gtk.WIN_POS_CENTER)
+
+        # Video screen
         vbox = gtk.VBox()
         self.window.add(vbox)
         self.movie_window = gtk.DrawingArea()
         vbox.add(self.movie_window)
+
+        # Button
         hbox = gtk.HBox()
         vbox.pack_start(hbox, False)
         hbox.set_border_width(10)
         hbox.pack_start(gtk.Label())
         self.button = gtk.Button("Snap")
-        self.button.connect("clicked", self.get_snapshot)
+        self.button.connect("clicked", self.take_snapshot)
         hbox.pack_start(self.button, False)
         hbox.add(gtk.Label())
-
+       
     def create_video_pipeline(self):
         """Set up the video pipeline and the communication bus bewteen the video stream and gtk DrawingArea """
         src = gst_src + self.device # video input
-        src_format = gst_src_format +',width='+ self.W + ',height=' + self.H +',framerate='+ self.framerate # video parameters
+        src_format = gst_src_format +',width='+ str(self.W) + ',height=' + str(self.H) +',framerate='+ self.framerate # video parameters
         videosink = gst_videosink # video receiver
         video_pipeline = src + sep  + src_format + sep + videosink 
-        print 'gstreamer video pipeline :', video_pipeline
+        # print 'gstreamer video pipeline :', video_pipeline
         self.video_player = gst.parse_launch(video_pipeline) # create pipeline
         self.video_player.set_state(gst.STATE_PLAYING)       # start video stream
 
@@ -121,33 +123,18 @@ class Webcam:
             imagesink.set_property("force-aspect-ratio", True)
             imagesink.set_xwindow_id(self.movie_window.window.xid) # Sending video stream to gtk DrawingArea
 
-    def get_snapshot(self, e):
-        """ Capture a snapshot from webcam input """
-        # We close video stream
-        self.video_player.set_state(gst.STATE_NULL)
-        # Open a image capture pipeline
-        src = gst_src + self.device # video input
-        src_format =  gst_src_format + ',width=' + self.W + ',height=' + self.H # video format
-        self.output = snapshot_name() + '.' + self.snap_format # file ouput
-        filesink = gst_filesink + self.output # file sink & location  
-        snap_pipeline = src + sep + src_format + sep + yuv_rgb_converter + sep + self.image_enc + sep + filesink # We have to convert YUV format to RGB to save the image
-       
-        print 'gstreamer image_pipeline :', snap_pipeline
-        self.image_capture= gst.parse_launch(snap_pipeline) # Create pipeline
-        self.image_capture.set_state(gst.STATE_PLAYING) # Start it. That will save the image, because of the filesink component
-        
-        # We need to wait until IO on snapshot is over
-        snapshot_is_captured = False
-        while snapshot_is_captured == False:
-            try:
-                Image.open(self.output)
-                snapshot_is_captured = True
-            except IOError:
-                pass
-        # Killing image capture pipeline
-        self.image_capture.set_state(gst.STATE_NULL)
-        # restoring video pipeline
-        self.video_player.set_state(gst.STATE_PLAYING)        
+    def take_snapshot(self,e):
+        """ Capture a snapshot from DrawingArea and save it into a image file """
+        drawable = self.movie_window.window
+        colormap = drawable.get_colormap()
+        pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, 0, 8, *drawable.get_size())
+        pixbuf = pixbuf.get_from_drawable(drawable, colormap, 0,0,0,0, *drawable.get_size())
+        pixbuf = pixbuf.scale_simple(self.W, self.H, gtk.gdk.INTERP_HYPER) 
+        # We resize from actual window size to wanted resolution
+        # gtk.gdk.INTER_HYPER is the slowest and highest quality reconstruction function
+        # More info here : http://developer.gnome.org/pygtk/stable/class-gdkpixbuf.html#method-gdkpixbuf--scale-simple
+        filename = snapshot_name() + '.' + self.snap_format
+        pixbuf.save(filename, self.snap_format)
         
     def run(self):
         """ Main loop """

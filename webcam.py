@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from ssGUI import Webcam
+from ssGUI import StrongsteamGUI
 
 if __name__ == "__main__":
 
@@ -11,7 +11,7 @@ if __name__ == "__main__":
     parser.add_argument('--resolution', '-r', nargs='+', type=str,  default=['640:480'], 
                         choices = ['352:288', '640:480', '800:600', '960:720', '1280:720'],
                         help="Set the video stream resolution. Of the form W:H")
-    parser.add_argument('--output-format', '-o', type=str, action='store', default='jpg', choices=['png','jpeg','jpg'], help="Set the snapshot format")
+    parser.add_argument('--output-format', '-o', type=str, action='store', default='jpeg', choices=['png','jpeg'], help="Set the snapshot format")
 
     args = vars(parser.parse_args())
     device = args['device']
@@ -19,5 +19,5 @@ if __name__ == "__main__":
     snap_format = args['output_format']
 
     # Let the show begin
-    cam = Webcam(device, resolution, snap_format)
+    cam = StrongsteamGUI(device, resolution, snap_format)
     cam.run()

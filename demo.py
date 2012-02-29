@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import argparse
-from ssGUI import StrongsteamGUI
+from ssGUI import WebcamManager
 
 if __name__ == "__main__":
 
@@ -19,5 +19,5 @@ if __name__ == "__main__":
     snap_format = args['output_format']
 
     # Let the show begin
-    cam = StrongsteamGUI(device, resolution, snap_format)
+    cam = WebcamManager(device, resolution, snap_format)
     cam.run()

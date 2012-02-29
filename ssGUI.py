@@ -10,7 +10,7 @@ import pygst
 pygst.require("0.10")
 import gst
 
-from os.path import exists
+from os.path import exists, relpath
 from sys import exit
 
 window_w  = 660
@@ -26,7 +26,7 @@ gst_src_format      = 'video/x-raw-yuv' # colorspace specific to webcam
 gst_videosink       = 'xvimagesink'     # sink habilitated to manage images
 sep                 = ' ! '             # standard gstreamer pipe. Don't change that
 
-class StrongsteamGUI:    
+class WebcamManager:    
     def __init__(self, device, resolution, snap_format):
         """
         Set up the GUI, the gstreamer pipeline and webcam<-->GUI communication bus.
@@ -54,7 +54,7 @@ class StrongsteamGUI:
         """Set up the GUI"""
         # Window
         self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.set_title("Strongsteam is watching you...")
+        self.window.set_title("Smile or be killed.")
         self.window.set_default_size(window_w, window_h)
         self.window.connect("destroy", self.exit, "WM destroy")
         self.window.set_geometry_hints(min_width=window_w, 
@@ -75,7 +75,7 @@ class StrongsteamGUI:
         hbox.set_border_width(10)
         hbox.pack_start(gtk.Label())
         self.button = gtk.Button("Snap")
-        self.button.connect("clicked", self.take_snapshot)
+        self.button.connect("clicked", self.send_snapshot_to_strongsteam)
         hbox.pack_start(self.button, False)
         hbox.add(gtk.Label())
        
@@ -123,19 +123,21 @@ class StrongsteamGUI:
             imagesink.set_property("force-aspect-ratio", True)
             imagesink.set_xwindow_id(self.movie_window.window.xid) # Sending video stream to gtk DrawingArea
 
-    def take_snapshot(self,e):
+    def take_snapshot(self):
         """ Capture a snapshot from DrawingArea and save it into a image file """
         drawable = self.movie_window.window
         colormap = drawable.get_colormap()
         pixbuf = gtk.gdk.Pixbuf(gtk.gdk.COLORSPACE_RGB, 0, 8, *drawable.get_size())
-        pixbuf = pixbuf.get_from_drawable(drawable, colormap, 0,0,0,0, *drawable.get_size())
-        pixbuf = pixbuf.scale_simple(self.W, self.H, gtk.gdk.INTERP_HYPER) 
+        pixbuf = pixbuf.get_from_drawable(drawable, colormap, 0,0,0,0, *drawable.get_size()) 
+        pixbuf = pixbuf.scale_simple(self.W, self.H, gtk.gdk.INTERP_HYPER) # resize
         # We resize from actual window size to wanted resolution
         # gtk.gdk.INTER_HYPER is the slowest and highest quality reconstruction function
         # More info here : http://developer.gnome.org/pygtk/stable/class-gdkpixbuf.html#method-gdkpixbuf--scale-simple
         filename = snapshot_name() + '.' + self.snap_format
+        filepath = relpath(filename)
         pixbuf.save(filename, self.snap_format)
-        
+        return filepath
+            
     def run(self):
         """ Main loop """
         gtk.gdk.threads_init()

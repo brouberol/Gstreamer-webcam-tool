@@ -75,7 +75,7 @@ class WebcamManager:
         hbox.set_border_width(10)
         hbox.pack_start(gtk.Label())
         self.button = gtk.Button("Snap")
-        self.button.connect("clicked", self.send_snapshot_to_strongsteam)
+        self.button.connect("clicked", self.take_snapshot)
         hbox.pack_start(self.button, False)
         hbox.add(gtk.Label())
        
@@ -123,7 +123,7 @@ class WebcamManager:
             imagesink.set_property("force-aspect-ratio", True)
             imagesink.set_xwindow_id(self.movie_window.window.xid) # Sending video stream to gtk DrawingArea
 
-    def take_snapshot(self):
+    def take_snapshot(self, e):
         """ Capture a snapshot from DrawingArea and save it into a image file """
         drawable = self.movie_window.window
         colormap = drawable.get_colormap()
